@@ -65,11 +65,11 @@ class SerialBaseSMDP :
 #            print("Command understood and executed.")
             pass
         elif error_code == 2:
-            raise ConnectionError("Illegal command (command code not valid) : {Byte_CMD}.")
+            raise ConnectionError(f"Illegal command (command code not valid) : {cmd_bytes}.")
         elif error_code == 3:
-            raise ConnectionError("Syntax error (too many bytes in data field, not enough bytes) for command {Byte_CMD}.")
+            raise ConnectionError(f"Syntax error (too many bytes in data field, not enough bytes) for command {cmd_bytes}.")
         elif error_code == 4:
-            raise ConnectionError("Data range error for command : {Byte_CMD}.")
+            raise ConnectionError(f"Data range error for command : {cmd_bytes}.")
         elif error_code == 5:
             raise ConnectionError(f"Command {cmd_bytes} inhibited.")
         elif error_code == 6:
@@ -171,7 +171,7 @@ class InficonSTM2:
     def set_samples_number(self, number):
         """Sets number of samples to 'number' for temporal averaging."""
         if not 1 <= number <= 50:
-            raise ValueError(f"Samples number value should be between 1 et 50; value entered : {number}.")
+            raise ValueError(f"Samples number value should be between 1 and 50; value entered : {number}.")
         return self.protocol.send_command(self.port, 'r=' + str(number))
 
     def get_samples_number(self):

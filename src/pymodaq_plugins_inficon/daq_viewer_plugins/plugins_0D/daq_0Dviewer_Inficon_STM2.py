@@ -80,7 +80,7 @@ class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
                     self.controller = InficonSTM2(self.port)
                 else:
                     self.port_change = False
-                self.emit_status(ThreadCommand('Update_Status', [str(self.controller) + " " + str(self.port), 'log']))
+                self.emit_status(ThreadCommand('Update_Status', ["Selected port is now : " + str(self.port), 'log']))
             elif param.name() == 'set_default_parameters':
                 self.controller.set_default_parameters()
             elif param.name() == 'set_thickness_zeroes':
