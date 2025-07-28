@@ -20,6 +20,7 @@ authors = [
     {name = "Benoît Pons", email = "benoitp208@gmail.com"},
 ]
 maintainers = [
+    {name = "Benoît Pons", email = "benoitp208@gmail.com"},
     {name = "Marc Villemant", email = "Marc.Villemant@onera.fr"},
 ]
 
