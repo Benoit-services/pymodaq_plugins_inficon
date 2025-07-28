@@ -1,56 +1,58 @@
 import numpy as np
-
 from pymodaq_utils.utils import ThreadCommand
 from pymodaq_data.data import DataToExport
 from pymodaq_gui.parameter import Parameter
-
 from pymodaq.control_modules.viewer_utility_classes import DAQ_Viewer_base, comon_parameters, main
 from pymodaq.utils.data import DataFromPlugins
+from pymodaq_plugins_inficon.hardware.STM2_Python_Wrapper import InficonSTM2
 
-class PythonWrapperOfYourInstrument:
-    #  TODO Replace this fake class with the import of the real python wrapper of your instrument
-    pass
-
-# TODO:
-# (1) change the name of the following class to DAQ_0DViewer_TheNameOfYourChoice
-# (2) change the name of this file to daq_0Dviewer_TheNameOfYourChoice ("TheNameOfYourChoice" should be the SAME
-#     for the class name and the file name.)
-# (3) this file should then be put into the right folder, namely IN THE FOLDER OF THE PLUGIN YOU ARE DEVELOPING:
-#     pymodaq_plugins_my_plugin/daq_viewer_plugins/plugins_0D
-
-class DAQ_0DViewer_Template(DAQ_Viewer_base):
-    """ Instrument plugin class for a OD viewer.
-    
-    This object inherits all functionalities to communicate with PyMoDAQ’s DAQ_Viewer module through inheritance via
-    DAQ_Viewer_base. It makes a bridge between the DAQ_Viewer module and the Python wrapper of a particular instrument.
-
-    TODO Complete the docstring of your plugin with:
-        * The set of instruments that should be compatible with this instrument plugin.
-        * With which instrument it has actually been tested.
-        * The version of PyMoDAQ during the test.
-        * The version of the operating system.
-        * Installation instructions: what manufacturer’s drivers should be installed to make it run?
-
+class DAQ_0DViewer_Inficon_STM2(DAQ_Viewer_base):
+    """ Module class for Inficon STM-2 instrument.
+        It needs the Inficon driver in order to communicate with PyMoDAQ.
+        It has been tested only with Inficon STM-2 rate/thickness monitor.
+    =======================================================================
     Attributes:
     -----------
     controller: object
-        The particular object that allow the communication with the hardware, in general a python wrapper around the
-         hardware library.
+        InficonSTM2 object from python wrapper STM2_Serial_Communication that uses SerialBaseSMDP methods to communicate
+        with the instrument according to the specific protocol (Sycon Multi Drop Protocol) described in its documentation.
          
-    # TODO add your particular attributes here if any
+    ========================================================================
 
     """
+
     params = comon_parameters+[
-        ## TODO for your custom plugin: elements to be added here as dicts in order to control your custom stage
+        {'title': 'Device serial number :', 'name': 'device_serial_number', 'type': 'list'},
+        {'title': 'Device information :', 'name': 'device_info', 'type': 'str', 'value': '', 'readonly': True},
+        {'title': 'Crystal status :', 'name': 'crystal_status', 'type': 'str', 'value': '', 'readonly': True},
+        {'title': 'Crystal life (%) :', 'name': 'crystal_life', 'type': 'str', 'value': '', 'readonly': True},
+        {'title': 'Timer (H:MM:SS) :', 'name': 'timer', 'type': 'str', 'value': '', 'readonly': True},
+        {'title': 'Set default parameters :', 'name': 'set_default_parameters', 'type': 'bool'},
+        {'title': 'Zeroes thickness :', 'name': 'set_thickness_zeroes', 'type': 'bool'},
+        {'title': 'Zeroes timer :', 'name': 'set_timer_zeroes', 'type': 'bool'},
+        {'title': 'Film name :', 'name': 'film_name', 'type': 'str'},
+        {'title': 'Film density :', 'name': 'film_density', 'type': 'float', 'max': 99.99, 'min': 0.40},
+        {'title': 'Film Z-ratio :', 'name': 'film_zratio', 'type': 'float', 'max': 9.999, 'min': 0.100},
+        {'title': 'Film tooling (%) :', 'name': 'film_tooling', 'type': 'float', 'max': 999.9, 'min': 10.0},
+        {'title': 'Samples number :', 'name': 'samples_number', 'type': 'int', 'max': 50, 'min': 1}
         ]
 
-    def ini_attributes(self):
-        #  TODO declare the type of the wrapper (and assign it to self.controller) you're going to use for easy
-        #  autocompletion
-        self.controller: PythonWrapperOfYourInstrument = None
+    def link_ports_and_sn(self):
+        list_serial_numbers = []
+        if self.stm2_ports:
+            for port in self.stm2_ports:
+                serial_number = InficonSTM2(port).get_serial_number()
+                list_serial_numbers.append(serial_number + ' (' + port +')')
+        self.settings.child('device_serial_number').setLimits(list_serial_numbers)
 
-        #TODO declare here attributes you want/need to init with a default value
-        pass
+    def ini_attributes(self):
+        self.controller: InficonSTM2 = None
+        self.controller = None
+        self.stm2_ports = InficonSTM2().stm2_ports
+        self.port = None
+        self.port_change = False
+        self.link_ports_and_sn()
+        self.emit_status(ThreadCommand('Update_Status', ['Detected STM-2 COM ports : ' + str(self.stm2_ports), 'log']))
 
     def commit_settings(self, param: Parameter):
         """Apply the consequences of a change of value in the detector settings
@@ -58,13 +60,60 @@ class DAQ_0DViewer_Template(DAQ_Viewer_base):
         Parameters
         ----------
         param: Parameter
-            A given parameter (within detector_settings) whose value has been changed by the user
+            Device serial number : list of detected STM-2 monitors, can be selected during initialization
+            (changes may occur between units, see red light on it).
+            Set default parameters : sets the unit to its constructor default values.
+            Zeroes thickness : as in title.
+            Zeroes timer : as in title.
+            Film name : sets unit film name (8 characters max), nice to remember who is who.
+            Film density : sets film density on the unit for calculated values.
+            Film Z-ratio : sets film Z-ratio on the unit for calculated values.
+            Film tooling : sets film tooling on the unit for calculated values.
+            Samples number : sets sample number on the unit for calculated values.
         """
-        ## TODO for your custom plugin
-        if param.name() == "a_parameter_you've_added_in_self.params":
-           self.controller.your_method_to_apply_this_param_change()  # when writing your own plugin replace this line
-#        elif ...
-        ##
+        try:
+            if param.name() == 'device_serial_number':
+                old_port = self.port
+                self.port = param.value()[-5:-1]
+                if old_port != self.port:
+                    self.port_change = True
+                    self.controller = InficonSTM2(self.port)
+                else:
+                    self.port_change = False
+                self.emit_status(ThreadCommand('Update_Status', [str(self.controller) + " " + str(self.port), 'log']))
+            elif param.name() == 'set_default_parameters':
+                self.controller.set_default_parameters()
+            elif param.name() == 'set_thickness_zeroes':
+                self.controller.set_thickness_zeroes()
+            elif param.name() == 'set_timer_zeroes':
+                self.controller.set_timer_zeroes()
+            elif param.name() == 'film_name':
+                self.controller.set_film_name(param.value())
+            elif param.name() == 'film_density':
+                self.controller.set_film_density(param.value())
+            elif param.name() == 'film_zratio':
+                self.controller.set_film_zratio(param.value())
+            elif param.name() == 'film_tooling':
+                self.controller.set_film_tooling(param.value())
+            elif param.name() == 'samples_number':
+                self.controller.set_samples_number(param.value())
+            self.update_parameter_branch()
+        except Exception as e:
+            self.emit_status(ThreadCommand('Update_Status', [str(e), 'log']))
+
+    def update_parameter_branch(self):
+        infos = ('Model and firmware version : {}, Build type : {}, Firmware CRC : {}, Reset Status : {}'.format
+                (self.controller.get_infos(), self.controller.get_build_type(), self.controller.get_firmware_crc(),
+                self.controller.get_reset_status()))
+        self.settings.child('device_info').setValue(infos)
+        self.settings.child('crystal_status').setValue(self.controller.get_cristal_status())
+        self.settings.child('crystal_life').setValue(self.controller.get_cristal_life())
+        self.settings.child('timer').setValue(self.controller.get_timer())
+        self.settings.child('film_name').setValue(self.controller.get_film_name())
+        self.settings.child('film_density').setValue(self.controller.get_film_density())
+        self.settings.child('film_zratio').setValue(self.controller.get_film_zratio())
+        self.settings.child('film_tooling').setValue(self.controller.get_film_tooling())
+        self.settings.child('samples_number').setValue(self.controller.get_samples_number())
 
     def ini_detector(self, controller=None):
         """Detector communication initialization
@@ -81,33 +130,40 @@ class DAQ_0DViewer_Template(DAQ_Viewer_base):
         initialized: bool
             False if initialization failed otherwise True
         """
-
-        raise NotImplementedError  # TODO when writing your own plugin remove this line and modify the one below
-        if self.is_master:
-            self.controller = PythonWrapperOfYourInstrument()  #instantiate you driver with whatever arguments are needed
-            self.controller.open_communication() # call eventual methods
-            initialized = self.controller.a_method_or_atttribute_to_check_if_init()  # TODO
-        else:
-            self.controller = controller
-            initialized = True
-
-        # TODO for your custom plugin (optional) initialize viewers panel with the future type of data
-        self.dte_signal_temp.emit(DataToExport(name='myplugin',
-                                               data=[DataFromPlugins(name='Mock1',
-                                                                    data=[np.array([0]), np.array([0])],
-                                                                    dim='Data0D',
-                                                                    labels=['Mock1', 'label2'])]))
-
-        info = "Whatever info you want to log"
+        self.ini_detector_init(slave_controller=controller)
+        if (self.stm2_ports != []) & self.is_master:
+            if not self.port_change:
+                self.port = self.stm2_ports[0]
+            self.controller = InficonSTM2(self.port)
+        self.update_parameter_branch()
+        self.dte_signal_temp.emit(DataToExport('STM-2 Data',
+                                               data=[DataFromPlugins(name='STM-2 Frequency',
+                                                                     data=[np.array([0, 5])],
+                                                                     dim='Data0D',
+                                                                     labels=['Frequency (Hz)']),
+                                                     DataFromPlugins(name='STM-2 Thickness',
+                                                                     data=[np.array([0, 5])],
+                                                                     dim='Data0D',
+                                                                     labels=['Thickness (Å)']),
+                                                     DataFromPlugins(name='STM-2 Film mass',
+                                                                     data=[np.array([0, 5])],
+                                                                     dim='Data0D',
+                                                                     labels=['Film mass (µg/cm²)']),
+                                                     DataFromPlugins(name='STM-2 Rate',
+                                                                     data=[np.array([0, 5])],
+                                                                     dim='Data0D',
+                                                                     labels=['Rate (Å/s)']),
+                                                     DataFromPlugins(name='STM-2 Mass accumulation rate',
+                                                                     data=[np.array([0, 5])],
+                                                                     dim='Data0D',
+                                                                     labels=['Mass accumulation rate (μg/(*s/cm²))'])]))
+        info = "Default values for selected STM-2 should be printed and graphs should appear."
+        initialized = bool(self.controller)
         return info, initialized
 
     def close(self):
         """Terminate the communication protocol"""
-        ## TODO for your custom plugin
-        raise NotImplementedError  # when writing your own plugin remove this line
-        if self.is_master:
-            #  self.controller.your_method_to_terminate_the_communication()  # when writing your own plugin replace this line
-            ...
+        self.controller = None
 
     def grab_data(self, Naverage=1, **kwargs):
         """Start a grab from the detector
@@ -120,35 +176,31 @@ class DAQ_0DViewer_Template(DAQ_Viewer_base):
         kwargs: dict
             others optionals arguments
         """
-        ## TODO for your custom plugin: you should choose EITHER the synchrone or the asynchrone version following
-
-        # synchrone version (blocking function)
-        raise NotImplementedError  # when writing your own plugin remove this line
-        data_tot = self.controller.your_method_to_start_a_grab_snap()
-        self.dte_signal.emit(DataToExport(name='myplugin',
-                                          data=[DataFromPlugins(name='Mock1', data=data_tot,
-                                                                dim='Data0D', labels=['dat0', 'data1'])]))
-        #########################################################
-
-        # asynchrone version (non-blocking function with callback)
-        raise NotImplementedError  # when writing your own plugin remove this line
-        self.controller.your_method_to_start_a_grab_snap(self.callback)  # when writing your own plugin replace this line
-        #########################################################
-
-
-    def callback(self):
-        """optional asynchrone method called when the detector has finished its acquisition of data"""
-        data_tot = self.controller.your_method_to_get_data_from_buffer()
-        self.dte_signal.emit(DataToExport(name='myplugin',
-                                          data=[DataFromPlugins(name='Mock1', data=data_tot,
-                                                                dim='Data0D', labels=['dat0', 'data1'])]))
+        self.dte_signal.emit(DataToExport('STM-2 Data',
+                                               data=[DataFromPlugins(name='STM-2 Frequency',
+                                                                     data=[np.array([self.controller.get_frequency()])],
+                                                                     dim='Data0D',
+                                                                     labels=['Frequency (Hz)']),
+                                                     DataFromPlugins(name='STM-2 Thickness',
+                                                                     data=[np.array([self.controller.get_thickness()])],
+                                                                     dim='Data0D',
+                                                                     labels=['Thickness (Å)']),
+                                                     DataFromPlugins(name='STM-2 Film mass',
+                                                                     data=[np.array([self.controller.get_film_mass()])],
+                                                                     dim='Data0D',
+                                                                     labels=['Film mass (µg/cm²)']),
+                                                     DataFromPlugins(name='STM-2 Rate',
+                                                                     data=[np.array([self.controller.get_rate()])],
+                                                                     dim='Data0D',
+                                                                     labels=['Rate (Å/s)']),
+                                                     DataFromPlugins(name='STM-2 Mass accumulation rate',
+                                                                     data=[np.array([self.controller.get_mass_accumulation_rate()])],
+                                                                     dim='Data0D',
+                                                                     labels=['Mass accumulation rate (μg/(*s/cm²))'])]))
 
     def stop(self):
         """Stop the current grab hardware wise if necessary"""
-        ## TODO for your custom plugin
-        raise NotImplementedError  # when writing your own plugin remove this line
-        self.controller.your_method_to_stop_acquisition()  # when writing your own plugin replace this line
-        self.emit_status(ThreadCommand('Update_Status', ['Some info you want to log']))
+        self.emit_status(ThreadCommand('Update_Status', ['Stopped']))
         ##############################
         return ''
 

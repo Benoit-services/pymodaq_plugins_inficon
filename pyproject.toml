@@ -1,28 +1,26 @@
-[features]  # defines the plugin features contained into this plugin
-instruments = true  # true if plugin contains instrument classes (else false, notice the lowercase for toml files)
-extensions = false  # true if plugins contains dashboard extensions
-models = false  # true if plugins contains pid models
-h5exporters = false  # true if plugin contains custom h5 file exporters
-scanners = false  # true if plugin contains custom scan layout (daq_scan extensions)
+[features]
+instruments = true
+extensions = false
+models = false
+h5exporters = false
+scanners = false
 
 [urls]
-package-url = 'https://github.com/PyMoDAQ/pymodaq_plugins_template' #todo modify url by your plugin url
+package-url = 'https://github.com/Benoit-services/pymodaq_plugins_inficon'
 
 [project]
-name = "pymodaq_plugins_template" #todo modify template by your plugin short name
-description = 'some word about your plugin'
+name = "pymodaq_plugins_inficon"
+description = 'Plugin for inficon manufacturer instruments, starting with STM-2 thickness/rate monitor.'
 dependencies = [
     "pymodaq>=5.0.0",
-    #todo: list here all dependencies your package may have
+    "pyserial>=3.5"
 ]
 
 authors = [
-    {name = "Name Surname", email = "myname@test.fr"},
-    #todo: list here all authors of your plugin
+    {name = "Benoît Pons", email = "benoitp208@gmail.com"},
 ]
 maintainers = [
-    {name = "Name Surname", email = "myname@test.fr"},
-    #todo: list here all maintainers of your plugin
+    {name = "Marc Villemant", email = "Marc.Villemant@onera.fr"},
 ]
 
 # nottodo: leave everything below as is!
