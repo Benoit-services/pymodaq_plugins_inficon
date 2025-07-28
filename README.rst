@@ -68,6 +68,7 @@ Installation instructions
 =========================
 
 * PyMoDAQ’s version 5.0.x
-* Windows 11 Pro v23H2.
-* This plugin requieres the Inficon STM-2 USB installer. You should be able to see the connected instrument in the list of COM ports of your computer.
-It also requieres py-serial library for the driver to run properly. 
+* Windows 11 Pro version 23H2.
+* This plugin requires the Inficon STM-2 USB installer (check the download section of the manufacturer's site).
+You should be able to see the connected instrument in the list of COM ports of your computer.
+It also requires py-serial library for the driver to run properly.
